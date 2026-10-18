@@ -8,7 +8,14 @@ export async function GET() {
     const payload = raw?.data ?? raw;
     const rates: any[] = [];
     const groups: any[] = [];
-    const categoryName = (key: string) => key.toLowerCase().includes('game') ? 'เกม' : key.toLowerCase().includes('card') || key.toLowerCase().includes('cash') ? 'บัตรเงินสด' : 'เติมเงินมือถือ';
+    const categoryName = (key: string) => {
+      const normalized = key.toLowerCase();
+      if (normalized === 'gtopup') return 'เกม';
+      if (normalized === 'mtopup') return 'เติมเงินมือถือ';
+      if (normalized.includes('game')) return 'เกม';
+      if (normalized.includes('card') || normalized.includes('cash')) return 'บัตรเงินสด';
+      return key;
+    };
     Object.entries(payload || {}).forEach(([key, value]: [string, any]) => {
       if (!Array.isArray(value)) return;
       value.forEach((company: any) => {
