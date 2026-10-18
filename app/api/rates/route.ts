@@ -1,35 +1,9 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 const stripHtml = (value: unknown) => String(value ?? '').replace(/<br\s*\/?\s*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
-export async function GET() {
-  try {
-    const response = await fetch('https://www.wepay.in.th/comp_export.php?json', { next: { revalidate: 300 } });
-    if (!response.ok) throw new Error('Wepay unavailable');
-    const raw = await response.json();
-    const payload = raw?.data ?? raw;
-    const rates: any[] = [];
-    const groups: any[] = [];
-    const categoryName = (key: string) => {
-      const normalized = key.toLowerCase();
-      if (normalized === 'gtopup') return 'เกม';
-      if (normalized === 'mtopup') return 'เติมเงินมือถือ';
-      if (normalized.includes('game')) return 'เกม';
-      if (normalized.includes('card') || normalized.includes('cash')) return 'บัตรเงินสด';
-      return key;
-    };
-    Object.entries(payload || {}).forEach(([key, value]: [string, any]) => {
-      if (!Array.isArray(value)) return;
-      value.forEach((company: any) => {
-        const name = company.company_name || company.name || company.product_name || company.title;
-        const denominations = Array.isArray(company.denomination) ? company.denomination : [company];
-        const packages = denominations.filter((item: any) => item.price !== undefined || item.amount !== undefined).map((item: any) => ({ price: Number(item.price ?? item.amount), description: stripHtml(item.description) || null }));
-        if (name && packages.length) groups.push({ id: company.company_id || `${key}-${name}`, type: key, name, category: company.category || categoryName(key), fee: company.fee ?? 0, minimumAmount: company.minimum_amount ?? null, maximumAmount: company.maximum_amount ?? null, refundable: company.refundable ?? false, packages });
-        denominations.forEach((item: any) => {
-          if (item.price === undefined && item.amount === undefined) return;
-          rates.push({ name: name || 'สินค้า Wepay', category: company.category || categoryName(key), price: `฿ ${Number(item.price ?? item.amount).toFixed(2)}`, value: item.description || `${company.minimum_amount ?? ''}${company.maximum_amount ? ` - ${company.maximum_amount}` : ''}`.trim() || 'เติมเงินตามมูลค่า', update: 'ล่าสุด', companyId: company.company_id });
-        });
-      });
-    });
-    return NextResponse.json({ rates, groups });
-  } catch { return NextResponse.json({ rates: [] }, { status: 200 }); }
-}
+const categoryName = (key: string) => { const normalized = key.toLowerCase(); if (normalized === 'gtopup' || normalized.includes('game')) return 'เกม'; if (normalized === 'mtopup') return 'เติมเงินมือถือ'; if (normalized.includes('card') || normalized.includes('cash')) return 'บัตรเงินสด'; return key; };
+const normalizeName = (name: string) => name.toLowerCase().replace(/[^a-z0-9ก-๙]+/g, ' ').trim();
+type Group = { id:string; type:string; name:string; category:string; fee:number; minimumAmount:number|null; maximumAmount:number|null; refundable:boolean; packages:{price:number;originalPrice?:number;description:string|null;sku?:string}[]; provider:string };
+async function loadWepay(): Promise<Group[]> { const response=await fetch('https://www.wepay.in.th/comp_export.php?json',{next:{revalidate:300}}); if(!response.ok)throw new Error('Wepay unavailable'); const raw=await response.json(),payload=raw?.data??raw,groups:Group[]=[]; Object.entries(payload||{}).forEach(([key,value]:[string,any])=>{if(!Array.isArray(value))return;value.forEach((company:any)=>{const name=company.company_name||company.name||company.product_name||company.title,denominations=Array.isArray(company.denomination)?company.denomination:[company],packages=denominations.filter((item:any)=>item.price!==undefined||item.amount!==undefined).map((item:any)=>({price:Number(item.price??item.amount),description:stripHtml(item.description)||null}));if(name&&packages.length)groups.push({id:`wepay-${company.company_id||key}-${normalizeName(name)}`,type:key,name,category:company.category||categoryName(key),fee:company.fee??0,minimumAmount:company.minimum_amount??null,maximumAmount:company.maximum_amount??null,refundable:company.refundable??false,packages,provider:'Wepay'});})}); return groups; }
+async function load24PaySeller(): Promise<Group[]> { const response=await fetch('https://x.24payseller.com/products/list',{next:{revalidate:300}}); if(!response.ok)throw new Error('24Payseller unavailable'); const raw=await response.json(),list=Array.isArray(raw)?raw:raw?.data||raw?.products||raw?.items||[]; return list.filter((product:any)=>product?.name&&Array.isArray(product.items)).map((product:any)=>({id:`24payseller-${product.key||normalizeName(product.name)}`,type:'gtopup',category:'เกม',name:product.name,fee:0,minimumAmount:null,maximumAmount:null,refundable:false,packages:product.items.map((item:any)=>({price:Number(item.price),originalPrice:Number(item.originalPrice)||undefined,description:stripHtml(item.name)||null,sku:item.sku})),provider:'24Payseller'})); }
+export async function GET(request:Request){const provider=new URL(request.url).searchParams.get('provider')||'Wepay';const [wepayResult,sellerResult]=await Promise.allSettled([loadWepay(),load24PaySeller()]);const wepay=wepayResult.status==='fulfilled'?wepayResult.value:[],seller=sellerResult.status==='fulfilled'?sellerResult.value:[],groups=provider==='24Payseller'?seller:wepay,sellerByName=new Map(seller.map(group=>[normalizeName(group.name),group])),comparisons=wepay.flatMap(group=>{const match=sellerByName.get(normalizeName(group.name));return match?[{name:group.name,wepay:group,seller:match}]:[]}),rates=groups.flatMap(group=>group.packages.map(pkg=>({name:group.name,category:group.category,price:`฿ ${pkg.price.toFixed(2)}`,value:pkg.description||'แพ็กเกจ',update:'ล่าสุด',provider:group.provider})));return NextResponse.json({provider,groups,rates,comparisons});}
