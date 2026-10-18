@@ -13,3 +13,5 @@
 .provider-logo.seller{background:#243d65;color:#8cc8ff}.compare-box{border:1px solid #5e3b87;background:#211436;border-radius:9px;padding:14px;margin-top:16px}.compare-box>b{display:block;margin:6px 0 10px;font-size:12px}.compare-row{display:grid;grid-template-columns:1fr auto 1fr auto;align-items:center;gap:9px;font-size:10px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}.compare-row strong{font:600 13px 'LINE Seed Sans TH';color:#d8b4fe}
 .compare-list{margin-top:10px}.compare-row{grid-template-columns:minmax(0,1fr) auto auto auto}.compare-row em{font-style:normal;font-size:10px;color:#fda4af;white-space:nowrap}.compare-row em.cheaper{color:#86efac}
 .compare-list{margin-top:10px}.compare-row{grid-template-columns:minmax(0,1fr) auto auto auto}.compare-row em{font-style:normal;font-size:10px;color:#fda4af;white-space:nowrap}.compare-row em.cheaper{color:#86efac}
+
+.select-box select{cursor:pointer}.select-box>svg{pointer-events:none}
