@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
+const stripHtml = (value: unknown) => String(value ?? '').replace(/<br\s*\/?\s*>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim();
 export async function GET() {
   try {
     const response = await fetch('https://www.wepay.in.th/comp_export.php?json', { next: { revalidate: 300 } });
@@ -21,7 +22,7 @@ export async function GET() {
       value.forEach((company: any) => {
         const name = company.company_name || company.name || company.product_name || company.title;
         const denominations = Array.isArray(company.denomination) ? company.denomination : [company];
-        const packages = denominations.filter((item: any) => item.price !== undefined || item.amount !== undefined).map((item: any) => ({ price: Number(item.price ?? item.amount), description: item.description || null }));
+        const packages = denominations.filter((item: any) => item.price !== undefined || item.amount !== undefined).map((item: any) => ({ price: Number(item.price ?? item.amount), description: stripHtml(item.description) || null }));
         if (name && packages.length) groups.push({ id: company.company_id || `${key}-${name}`, type: key, name, category: company.category || categoryName(key), fee: company.fee ?? 0, minimumAmount: company.minimum_amount ?? null, maximumAmount: company.maximum_amount ?? null, refundable: company.refundable ?? false, packages });
         denominations.forEach((item: any) => {
           if (item.price === undefined && item.amount === undefined) return;
